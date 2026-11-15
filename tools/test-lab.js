@@ -75,10 +75,16 @@ function boot(url) {
 
   /* -------- share link -------- */
   ok('share button exists', doc.getElementById('share') !== null);
+  const sheet = doc.getElementById('shareSheet');
+  const shareUrl = doc.getElementById('shareUrl');
   doc.getElementById('share').dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
-  await tick(80);
-  ok('share writes code into the fragment', w.location.hash.indexOf('#code=') === 0, w.location.hash.slice(0, 24));
-  ok('share fragment is not empty', w.location.hash.length > 10);
+  await tick(150);
+  ok('share opens the sheet', sheet.hidden === false);
+  ok('share box holds the link', shareUrl.value.indexOf('http://localhost/lab/#code=') === 0, shareUrl.value.slice(0, 48));
+  ok('share link has content', shareUrl.value.length > 40);
+  ok('address bar stays clean', w.location.hash === '', w.location.hash);
+  doc.getElementById('shareClose').dispatchEvent(new w.MouseEvent('click', { bubbles: true }));
+  ok('sheet closes', sheet.hidden === true);
 
   /* -------- loading a shared link -------- */
   const sharedCode = '<h1 id="shared">from the link</h1>';

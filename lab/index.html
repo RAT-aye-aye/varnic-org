@@ -154,6 +154,52 @@
   }
   #toast.show { opacity: 1; transform: translate(-50%, 0); }
 
+  /* ---------- share sheet ---------- */
+  .sheet {
+    position: fixed;
+    inset: 0;
+    z-index: 80;
+    display: grid;
+    place-items: center;
+    padding: 20px;
+    background: rgba(0, 0, 0, .55);
+    -webkit-backdrop-filter: blur(2px);
+    backdrop-filter: blur(2px);
+  }
+  .sheet[hidden] { display: none; }
+  .sheet-card {
+    width: 100%;
+    max-width: 520px;
+    padding: 18px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, .5);
+  }
+  .sheet-card h2 { margin: 0 0 6px; font-size: 16px; }
+  .sheet-card p {
+    margin: 0 0 12px;
+    color: var(--muted);
+    font-size: 12.5px;
+    line-height: 1.5;
+  }
+  #shareUrl {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    background: #0e1118;
+    color: #dbe3f0;
+    font-family: ui-monospace, "SF Mono", "Roboto Mono", monospace;
+    font-size: 12px;
+  }
+  .sheet-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 12px;
+  }
+
   @media (max-width: 820px) {
     main {
       grid-template-columns: 1fr;
@@ -203,6 +249,18 @@
   <footer>
     <strong>Public page:</strong> a share link looks like <code>/lab/#code=z:…</code> — that is your code compressed and packed into the URL, not gibberish. Anyone with the link can read it. Files you open stay on your device; nothing is uploaded to a server.
   </footer>
+
+  <div id="shareSheet" class="sheet" hidden>
+    <div class="sheet-card" role="dialog" aria-modal="true" aria-labelledby="shareTitle">
+      <h2 id="shareTitle">Share this snippet</h2>
+      <p>This link contains the whole snippet, compressed. Anyone who opens it gets the code loaded and running. It is long and encoded on purpose — copy the box, don't read it.</p>
+      <input id="shareUrl" type="text" readonly spellcheck="false" aria-label="Share link">
+      <div class="sheet-actions">
+        <button id="shareClose">Close</button>
+        <button id="shareCopy" class="primary">Copy link</button>
+      </div>
+    </div>
+  </div>
 
 <script>
 (function () {
@@ -309,6 +367,10 @@
   var openBtn = document.getElementById('open');
   var fileEl = document.getElementById('file');
   var shareBtn = document.getElementById('share');
+  var shareSheet = document.getElementById('shareSheet');
+  var shareUrlEl = document.getElementById('shareUrl');
+  var shareCopyBtn = document.getElementById('shareCopy');
+  var shareCloseBtn = document.getElementById('shareClose');
 
   var toastEl = null;
   function showToast(message) {
@@ -372,6 +434,17 @@
   function readShareToken() {
     var hash = location.hash || '';
     return hash.indexOf('#code=') === 0 ? hash.slice(6) : null;
+  }
+
+  function openShareSheet(url) {
+    shareUrlEl.value = url;
+    shareSheet.hidden = false;
+    shareCopyBtn.textContent = 'Copy link';
+    try { shareUrlEl.focus(); shareUrlEl.select(); } catch (e) {}
+  }
+
+  function closeShareSheet() {
+    shareSheet.hidden = true;
   }
 
   function render() {
@@ -467,7 +540,7 @@
     reader.readAsText(file);
   });
 
-  // Share link: the whole snippet goes into the URL fragment.
+  // Share link: the whole snippet goes into the URL fragment, shown in a sheet.
   shareBtn.addEventListener('click', async function () {
     if (!codeEl.value.trim()) {
       showToast('Nothing to share yet');
@@ -476,26 +549,42 @@
     shareBtn.disabled = true;
     try {
       var token = await encodeShare(codeEl.value);
-      var hash = '#code=' + token;
-      var url = location.origin + location.pathname + hash;
-      try { history.replaceState(null, '', hash); } catch (e) {}
-      var copied = false;
+      var url = location.origin + location.pathname + '#code=' + token;
+      openShareSheet(url);
       try {
         await navigator.clipboard.writeText(url);
-        copied = true;
+        shareCopyBtn.textContent = 'Copied';
+        showToast(url.length > 8000 ? 'Link copied — it is long, some apps may cut it' : 'Share link copied');
       } catch (e) {
-        try { window.prompt('Copy this share link (it contains your code, encoded):', url); } catch (e2) {}
-      }
-      if (url.length > 8000) {
-        showToast(copied ? 'Link copied — code is inside it, and it is long' : 'Share link ready — some apps may cut it');
-      } else {
-        showToast(copied ? 'Share link copied — code is inside the link' : 'Share link ready — code is inside the link');
+        showToast('Tap "Copy link" to copy it');
       }
     } catch (e) {
       showToast('Could not create the link');
     } finally {
       shareBtn.disabled = false;
     }
+  });
+
+  shareCopyBtn.addEventListener('click', async function () {
+    var url = shareUrlEl.value;
+    try { shareUrlEl.focus(); shareUrlEl.select(); } catch (e) {}
+    var copied = false;
+    try {
+      await navigator.clipboard.writeText(url);
+      copied = true;
+    } catch (e) {
+      try { copied = document.execCommand('copy'); } catch (e2) {}
+    }
+    shareCopyBtn.textContent = copied ? 'Copied' : 'Select + copy';
+    showToast(copied ? 'Share link copied' : 'Press and hold the box to copy');
+  });
+
+  shareCloseBtn.addEventListener('click', closeShareSheet);
+  shareSheet.addEventListener('click', function (e) {
+    if (e.target === shareSheet) closeShareSheet();
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && !shareSheet.hidden) closeShareSheet();
   });
 
   document.getElementById('download').addEventListener('click', function () {
