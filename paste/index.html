@@ -4,7 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0b0e13">
-<meta name="description" content="varnic.org paste — text in a link, nothing stored.">
+<meta name="description" content="varnic.org paste — text between devices, short links, no account.">
+<meta name="edge-api" content="https://api.varnic.org">
 <title>Paste — varnic.org</title>
 <link rel="icon" href="../icon.svg" type="image/svg+xml">
 <style>
@@ -77,6 +78,17 @@
   }
   .grow { flex: 1 1 auto; }
   .count { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+  select {
+    font: inherit;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--ink);
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 7px 6px;
+  }
 
   button {
     font: inherit;
@@ -209,6 +221,12 @@
       <div class="bar">
         <span class="count" id="count">0 characters</span>
         <span class="grow"></span>
+        <select id="ttl" aria-label="How long the link lives">
+          <option value="1h">for 1 hour</option>
+          <option value="1d">for 1 day</option>
+          <option value="7d">for 7 days</option>
+          <option value="30d" selected>for 30 days</option>
+        </select>
         <button id="clear">Clear</button>
         <button id="create" class="primary">Create link</button>
       </div>
@@ -218,13 +236,13 @@
   </main>
 
   <footer>
-    <strong>Nothing is stored.</strong> The text is compressed into the link's <code>#fragment</code>, which browsers never send to the server. Anyone with the link can read it, so don't paste passwords.
+    <strong>Short links, no account.</strong> The text is kept on the edge for as long as you pick, and the link is just an <code>?id=</code>. If the edge can't be reached, the page falls back to packing the text into the URL itself. Anyone with the link can read it, so don't paste passwords.
   </footer>
 
   <div id="sheet" class="sheet" hidden>
     <div class="sheet-card" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
       <h2 id="sheetTitle">Paste link</h2>
-      <p>This link contains the text, compressed. Open it on any device and the paste appears. Nothing is saved on a server, and the address bar is left alone.</p>
+      <p id="sheetNote">Open this on any device and the paste appears. The address bar is left alone.</p>
       <input id="pasteUrl" type="text" readonly spellcheck="false" aria-label="Paste link">
       <div class="meta" id="linkMeta"></div>
       <div class="actions">
@@ -241,11 +259,16 @@
   var MAX_TEXT = 200000;
   var MAX_COMFORTABLE_URL = 8000;
 
+  var EDGE_META = document.querySelector('meta[name="edge-api"]');
+  var EDGE = EDGE_META ? String(EDGE_META.getAttribute('content') || '').replace(/\/+$/, '') : '';
+
   var textEl = document.getElementById('text');
   var countEl = document.getElementById('count');
   var createBtn = document.getElementById('create');
   var clearBtn = document.getElementById('clear');
+  var ttlEl = document.getElementById('ttl');
   var sheet = document.getElementById('sheet');
+  var sheetNote = document.getElementById('sheetNote');
   var urlEl = document.getElementById('pasteUrl');
   var metaEl = document.getElementById('linkMeta');
   var copyBtn = document.getElementById('copy');
@@ -320,10 +343,58 @@
     return hash.indexOf('#p=') === 0 ? hash.slice(3) : null;
   }
 
-  function openSheet(url, textLength) {
+  function readId() {
+    try {
+      return new URLSearchParams(location.search).get('id');
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /* ---------- the edge: short links, when it is reachable ---------- */
+
+  function api(path, options, timeoutMs) {
+    if (!EDGE || typeof fetch !== 'function') {
+      return Promise.reject(new Error('edge unavailable'));
+    }
+    var opts = options || {};
+    var timer = 0;
+    if (typeof AbortController === 'function') {
+      var controller = new AbortController();
+      opts.signal = controller.signal;
+      timer = setTimeout(function () { controller.abort(); }, timeoutMs || 8000);
+    }
+    return fetch(EDGE + path, opts).then(function (res) {
+      if (timer) clearTimeout(timer);
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      return res.json();
+    }, function (err) {
+      if (timer) clearTimeout(timer);
+      throw err;
+    });
+  }
+
+  function ttlChoice() {
+    var key = ttlEl && ttlEl.value ? ttlEl.value : '30d';
+    var label = '30 days';
+    if (ttlEl && ttlEl.options && ttlEl.selectedIndex >= 0) {
+      label = String(ttlEl.options[ttlEl.selectedIndex].textContent || label)
+        .replace(/^for\s+/i, '');
+    }
+    return { key: key, label: label };
+  }
+
+  function openSheet(url, textLength, mode, ttlLabel) {
     urlEl.value = url;
     metaEl.textContent = textLength.toLocaleString() + ' characters of text → ' +
       url.length.toLocaleString() + ' character link';
+    if (mode === 'edge') {
+      sheetNote.textContent = 'Saved on the edge for ' + ttlLabel +
+        '. Short enough to type or send anywhere. Opening it needs a connection, and anyone with the link can read it.';
+    } else {
+      sheetNote.textContent = 'The whole text is compressed into this link, so it works with no server at all — ' +
+        'but it is long, and some chat apps cut long links.';
+    }
     sheet.hidden = false;
     copyBtn.textContent = 'Copy link';
     try { urlEl.focus(); urlEl.select(); } catch (e) {}
@@ -335,8 +406,21 @@
 
   updateCount();
 
-  // Open a pasted link.
+  // Open a link: ?id= from the edge, or #p= when the text is inside the URL.
   (async function restore() {
+    var id = readId();
+    if (id) {
+      try {
+        var data = await api('/paste/' + encodeURIComponent(id));
+        textEl.value = String(data && data.text != null ? data.text : '');
+        updateCount();
+        showToast('Loaded from the edge');
+      } catch (e) {
+        showToast('That paste is gone, or the edge is unreachable');
+      }
+      return;
+    }
+
     var token = readToken();
     if (!token) return;
     try {
@@ -361,25 +445,46 @@
       showToast('Too much text for a link (200,000 character max)');
       return;
     }
+
+    var ttl = ttlChoice();
+    var url = '';
+    var mode = 'edge';
+
     createBtn.disabled = true;
+    createBtn.textContent = 'Creating…';
     try {
-      var token = await encodeShare(text);
-      var url = location.origin + location.pathname + '#p=' + token;
-      openSheet(url, text.length);
+      try {
+        var saved = await api('/paste', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ text: text, ttl: ttl.key })
+        }, 10000);
+        if (!saved || typeof saved.id !== 'string') throw new Error('bad response');
+        url = location.origin + location.pathname + '?id=' + saved.id;
+      } catch (edgeError) {
+        var token = await encodeShare(text);
+        url = location.origin + location.pathname + '#p=' + token;
+        mode = 'inline';
+      }
+
+      openSheet(url, text.length, mode, ttl.label);
+
       try {
         await navigator.clipboard.writeText(url);
         copyBtn.textContent = 'Copied';
-        showToast('Paste link copied');
+        showToast(mode === 'edge' ? 'Short link copied' : 'Paste link copied');
       } catch (e) {
         showToast('Tap "Copy link" to copy it');
       }
-      if (url.length > MAX_COMFORTABLE_URL) {
+
+      if (mode === 'inline' && url.length > MAX_COMFORTABLE_URL) {
         showToast('Link copied — it is very long, some apps may cut it');
       }
     } catch (e) {
       showToast('Could not create the link');
     } finally {
       createBtn.disabled = false;
+      createBtn.textContent = 'Create link';
     }
   });
 
@@ -408,8 +513,8 @@
   clearBtn.addEventListener('click', function () {
     textEl.value = '';
     updateCount();
-    if (location.hash) {
-      try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {}
+    if (location.search || location.hash) {
+      try { history.replaceState(null, '', location.pathname); } catch (e) {}
     }
     textEl.focus();
   });
