@@ -98,7 +98,9 @@ function boot(url) {
   ok('shared link renders the preview', (sharedOut.getAttribute('srcdoc') || '').includes('from the link'));
 
   /* -------- safety / static checks -------- */
-  ok('sandboxed preview', out.getAttribute('sandbox') === 'allow-scripts allow-modals allow-forms');
+  ok('preview allows popups', (out.getAttribute('sandbox') || '').indexOf('allow-popups') !== -1);
+  ok('popup can escape the sandbox', (out.getAttribute('sandbox') || '').indexOf('allow-popups-to-escape-sandbox') !== -1);
+  ok('preview cannot reach the parent origin', (out.getAttribute('sandbox') || '').indexOf('allow-same-origin') === -1);
   ok('no external scripts on the page', doc.querySelectorAll('script[src]').length === 0);
 
   console.log(failures === 0 ? '\nALL LAB TESTS PASSED' : '\n' + failures + ' LAB TEST(S) FAILED');

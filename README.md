@@ -32,7 +32,12 @@ no build step — GitHub Pages serves the files exactly as they are.
 - **Download** saves the snippet as `page.html`; **Reset** restores the starter.
 - The last snippet is kept in `localStorage`.
 - The preview runs in a sandboxed iframe (`allow-scripts allow-modals
-  allow-forms`, no same-origin access), so it cannot touch the parent page.
+  allow-forms allow-popups allow-popups-to-escape-sandbox`, but **not**
+  `allow-same-origin`), so snippets can open windows and use dialogs but
+  cannot touch the lab's own page, cookies, or storage.
+- `window.open()` still needs a real tap or click inside the preview. Code
+  that opens a popup on load is blocked by the browser itself, in the lab or
+  anywhere else. On Android Chrome a popup usually appears as a new tab.
 
 Share links are as private as any URL: anyone who has the link can read the
 code, and it may appear in browser history. Don't put secrets in one.
