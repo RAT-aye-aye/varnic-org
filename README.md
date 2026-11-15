@@ -10,10 +10,12 @@ no build step — GitHub Pages serves the files exactly as they are.
 
 | Path | What it is |
 | --- | --- |
-| `index.html` | The varnic.org home page (links to the lab, chess, source) |
+| `index.html` | The varnic.org home page (links to the lab, paste, chess, source) |
 | `lab/index.html` | The HTML Lab: editor + live sandboxed preview |
+| `paste/index.html` | Paste: text compressed into a link |
 | `icon.svg` | Green-flame favicon |
 | `tools/test-lab.js` | Headless tests for the lab (jsdom) |
+| `tools/test-paste.js` | Headless tests for the paste page (jsdom) |
 | `CNAME` | `varnic.org`, for GitHub Pages |
 | `LICENSE` | MIT |
 
@@ -42,11 +44,25 @@ no build step — GitHub Pages serves the files exactly as they are.
 Share links are as private as any URL: anyone who has the link can read the
 code, and it may appear in browser history. Don't put secrets in one.
 
+## Paste
+
+`paste/index.html` is a pastebin with no database. Type or paste text, press
+**Create link**, and the whole paste is compressed into the URL fragment
+(`#p=z:...`). Open that link on another device and the text is there.
+
+- Nothing is uploaded and nothing is stored on a server; the fragment is
+  decoded entirely in the browser.
+- 200,000 character limit. Long pastes make long links, and some chat apps
+  truncate URLs, so the page warns when a link passes ~8,000 characters.
+- **Clear** also removes the `#p=` fragment from the address bar.
+- Like any link, it is readable by anyone who has it. Not for passwords.
+
 ## Tests
 
 ```bash
 # jsdom is only needed for the tests, not for the site
 NODE_PATH=/tmp/opencode/domtest/node_modules node tools/test-lab.js
+NODE_PATH=/tmp/opencode/domtest/node_modules node tools/test-paste.js
 ```
 
 ## Deploy

@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b0e13">
+<meta name="description" content="varnic.org paste — text in a link, nothing stored.">
+<title>Paste — varnic.org</title>
+<link rel="icon" href="../icon.svg" type="image/svg+xml">
+<style>
+  :root {
+    --bg: #0b0e13;
+    --panel: #121722;
+    --panel-2: #171d2a;
+    --line: rgba(255, 255, 255, .08);
+    --ink: #e8edf5;
+    --muted: #8b93a7;
+    --accent: #7dbf63;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: radial-gradient(120% 90% at 50% 0%, #151d16 0%, var(--bg) 55%);
+    color: var(--ink);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    display: flex;
+    flex-direction: column;
+    height: 100dvh;
+    overflow: hidden;
+  }
+
+  header {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: max(12px, env(safe-area-inset-top)) 14px 8px;
+  }
+  .back {
+    color: var(--muted);
+    text-decoration: none;
+    font-size: 13px;
+    border: 1px solid var(--line);
+    padding: 5px 10px;
+    border-radius: 9px;
+    white-space: nowrap;
+  }
+  .back:hover { color: var(--ink); border-color: rgba(255, 255, 255, .2); }
+  h1 { font-size: 17px; margin: 0; letter-spacing: .2px; }
+  .note { margin-left: auto; color: var(--muted); font-size: 11.5px; }
+
+  main {
+    flex: 1 1 auto;
+    min-height: 0;
+    padding: 4px 12px 8px;
+    display: flex;
+  }
+  .panel {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    overflow: hidden;
+  }
+  .bar {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 8px;
+    border-bottom: 1px solid var(--line);
+    flex-wrap: wrap;
+  }
+  .grow { flex: 1 1 auto; }
+  .count { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+  button {
+    font: inherit;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--ink);
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 7px 11px;
+    cursor: pointer;
+  }
+  button:active { transform: scale(.97); }
+  button.primary {
+    background: rgba(125, 191, 99, .18);
+    border-color: rgba(125, 191, 99, .4);
+    color: #c9edbb;
+  }
+  button:disabled { opacity: .5; }
+
+  textarea {
+    flex: 1 1 auto;
+    min-height: 0;
+    width: 100%;
+    resize: none;
+    border: 0;
+    outline: 0;
+    padding: 14px;
+    background: #0e1118;
+    color: #dbe3f0;
+    font-family: ui-monospace, "SF Mono", "Roboto Mono", monospace;
+    font-size: 13.5px;
+    line-height: 1.55;
+    tab-size: 2;
+  }
+  textarea::placeholder { color: #5a6274; }
+
+  footer {
+    flex: 0 0 auto;
+    padding: 0 14px max(10px, env(safe-area-inset-bottom));
+    color: #6d7383;
+    font-size: 11.5px;
+    line-height: 1.5;
+  }
+  footer strong { color: var(--muted); font-weight: 600; }
+
+  /* share sheet */
+  .sheet {
+    position: fixed;
+    inset: 0;
+    z-index: 80;
+    display: grid;
+    place-items: center;
+    padding: 20px;
+    background: rgba(0, 0, 0, .55);
+    -webkit-backdrop-filter: blur(2px);
+    backdrop-filter: blur(2px);
+  }
+  .sheet[hidden] { display: none; }
+  .sheet-card {
+    width: 100%;
+    max-width: 540px;
+    padding: 18px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, .5);
+  }
+  .sheet-card h2 { margin: 0 0 6px; font-size: 16px; }
+  .sheet-card p {
+    margin: 0 0 12px;
+    color: var(--muted);
+    font-size: 12.5px;
+    line-height: 1.5;
+  }
+  #pasteUrl {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid var(--line);
+    border-radius: 9px;
+    background: #0e1118;
+    color: #dbe3f0;
+    font-family: ui-monospace, "SF Mono", "Roboto Mono", monospace;
+    font-size: 12px;
+  }
+  .meta { margin-top: 8px; color: var(--muted); font-size: 11.5px; }
+  .actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 12px;
+  }
+
+  #toast {
+    position: fixed;
+    left: 50%;
+    bottom: calc(18px + env(safe-area-inset-bottom));
+    transform: translate(-50%, 10px);
+    z-index: 90;
+    padding: 9px 16px;
+    border-radius: 999px;
+    background: #0b120d;
+    color: #c6ffb8;
+    border: 1px solid rgba(125, 191, 99, .4);
+    font-size: 12.5px;
+    font-weight: 600;
+    max-width: min(92vw, 560px);
+    text-align: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .18s ease, transform .18s ease;
+  }
+  #toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+  @media (max-width: 520px) {
+    .note { display: none; }
+    h1 { font-size: 15.5px; }
+  }
+</style>
+</head>
+<body>
+  <header>
+    <a class="back" href="../">← varnic.org</a>
+    <h1>Paste</h1>
+    <span class="note">the text travels in the link</span>
+  </header>
+
+  <main>
+    <section class="panel">
+      <div class="bar">
+        <span class="count" id="count">0 characters</span>
+        <span class="grow"></span>
+        <button id="clear">Clear</button>
+        <button id="create" class="primary">Create link</button>
+      </div>
+      <textarea id="text" spellcheck="false" autocapitalize="off" autocomplete="off"
+                placeholder="Paste or type anything here…"></textarea>
+    </section>
+  </main>
+
+  <footer>
+    <strong>Nothing is stored.</strong> The text is compressed into the link's <code>#fragment</code>, which browsers never send to the server. Anyone with the link can read it, so don't paste passwords.
+  </footer>
+
+  <div id="sheet" class="sheet" hidden>
+    <div class="sheet-card" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
+      <h2 id="sheetTitle">Paste link</h2>
+      <p>This link contains the text, compressed. Open it on any device and the paste appears. Nothing is saved on a server, and the address bar is left alone.</p>
+      <input id="pasteUrl" type="text" readonly spellcheck="false" aria-label="Paste link">
+      <div class="meta" id="linkMeta"></div>
+      <div class="actions">
+        <button id="close">Close</button>
+        <button id="copy" class="primary">Copy link</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+(function () {
+  'use strict';
+
+  var MAX_TEXT = 200000;
+  var MAX_COMFORTABLE_URL = 8000;
+
+  var textEl = document.getElementById('text');
+  var countEl = document.getElementById('count');
+  var createBtn = document.getElementById('create');
+  var clearBtn = document.getElementById('clear');
+  var sheet = document.getElementById('sheet');
+  var urlEl = document.getElementById('pasteUrl');
+  var metaEl = document.getElementById('linkMeta');
+  var copyBtn = document.getElementById('copy');
+  var closeBtn = document.getElementById('close');
+
+  var toastEl = null;
+  function showToast(message) {
+    if (!toastEl) {
+      toastEl = document.createElement('div');
+      toastEl.id = 'toast';
+      document.body.appendChild(toastEl);
+    }
+    toastEl.textContent = message;
+    toastEl.classList.add('show');
+    clearTimeout(showToast._hide);
+    showToast._hide = setTimeout(function () {
+      toastEl.classList.remove('show');
+    }, 2400);
+  }
+
+  function updateCount() {
+    var n = textEl.value.length;
+    countEl.textContent = n === 1 ? '1 character' : n.toLocaleString() + ' characters';
+  }
+
+  /* ---------- encode / decode: text lives in the fragment ---------- */
+
+  function toB64url(bytes) {
+    var binary = '';
+    for (var i = 0; i < bytes.length; i += 0x8000) {
+      binary += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+    }
+    return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
+
+  function fromB64url(text) {
+    var b64 = text.replace(/-/g, '+').replace(/_/g, '/');
+    while (b64.length % 4) b64 += '=';
+    var binary = atob(b64);
+    var bytes = new Uint8Array(binary.length);
+    for (var i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    return bytes;
+  }
+
+  async function encodeShare(text) {
+    var bytes = new TextEncoder().encode(text);
+    if (typeof CompressionStream === 'function') {
+      try {
+        var stream = new Blob([bytes]).stream().pipeThrough(new CompressionStream('deflate-raw'));
+        var packed = new Uint8Array(await new Response(stream).arrayBuffer());
+        return 'z:' + toB64url(packed);
+      } catch (e) { /* fall back to plain base64url */ }
+    }
+    return toB64url(bytes);
+  }
+
+  async function decodeShare(token) {
+    var packed = token.slice(0, 2) === 'z:';
+    var bytes = fromB64url(packed ? token.slice(2) : token);
+    if (packed) {
+      if (typeof DecompressionStream !== 'function') {
+        throw new Error('This browser cannot read compressed paste links.');
+      }
+      var stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+      bytes = new Uint8Array(await new Response(stream).arrayBuffer());
+    }
+    return new TextDecoder().decode(bytes);
+  }
+
+  function readToken() {
+    var hash = location.hash || '';
+    return hash.indexOf('#p=') === 0 ? hash.slice(3) : null;
+  }
+
+  function openSheet(url, textLength) {
+    urlEl.value = url;
+    metaEl.textContent = textLength.toLocaleString() + ' characters of text → ' +
+      url.length.toLocaleString() + ' character link';
+    sheet.hidden = false;
+    copyBtn.textContent = 'Copy link';
+    try { urlEl.focus(); urlEl.select(); } catch (e) {}
+  }
+
+  function closeSheet() {
+    sheet.hidden = true;
+  }
+
+  updateCount();
+
+  // Open a pasted link.
+  (async function restore() {
+    var token = readToken();
+    if (!token) return;
+    try {
+      var text = await decodeShare(token);
+      textEl.value = text;
+      updateCount();
+      showToast('Loaded from link');
+    } catch (e) {
+      showToast('That paste link could not be read');
+    }
+  })();
+
+  textEl.addEventListener('input', updateCount);
+
+  createBtn.addEventListener('click', async function () {
+    var text = textEl.value;
+    if (!text.trim()) {
+      showToast('Type or paste something first');
+      return;
+    }
+    if (text.length > MAX_TEXT) {
+      showToast('Too much text for a link (200,000 character max)');
+      return;
+    }
+    createBtn.disabled = true;
+    try {
+      var token = await encodeShare(text);
+      var url = location.origin + location.pathname + '#p=' + token;
+      openSheet(url, text.length);
+      try {
+        await navigator.clipboard.writeText(url);
+        copyBtn.textContent = 'Copied';
+        showToast('Paste link copied');
+      } catch (e) {
+        showToast('Tap "Copy link" to copy it');
+      }
+      if (url.length > MAX_COMFORTABLE_URL) {
+        showToast('Link copied — it is very long, some apps may cut it');
+      }
+    } catch (e) {
+      showToast('Could not create the link');
+    } finally {
+      createBtn.disabled = false;
+    }
+  });
+
+  copyBtn.addEventListener('click', async function () {
+    var url = urlEl.value;
+    try { urlEl.focus(); urlEl.select(); } catch (e) {}
+    var copied = false;
+    try {
+      await navigator.clipboard.writeText(url);
+      copied = true;
+    } catch (e) {
+      try { copied = document.execCommand('copy'); } catch (e2) {}
+    }
+    copyBtn.textContent = copied ? 'Copied' : 'Select + copy';
+    showToast(copied ? 'Paste link copied' : 'Press and hold the box to copy');
+  });
+
+  closeBtn.addEventListener('click', closeSheet);
+  sheet.addEventListener('click', function (e) {
+    if (e.target === sheet) closeSheet();
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && !sheet.hidden) closeSheet();
+  });
+
+  clearBtn.addEventListener('click', function () {
+    textEl.value = '';
+    updateCount();
+    if (location.hash) {
+      try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {}
+    }
+    textEl.focus();
+  });
+})();
+</script>
+</body>
+</html>
