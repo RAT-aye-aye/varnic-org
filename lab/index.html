@@ -124,6 +124,14 @@
     color: #6d7383;
   }
   footer strong { color: var(--muted); font-weight: 600; }
+  footer code {
+    font-family: ui-monospace, "SF Mono", "Roboto Mono", monospace;
+    font-size: 11px;
+    color: var(--muted);
+    background: rgba(255, 255, 255, .05);
+    padding: 1px 5px;
+    border-radius: 5px;
+  }
 
   #toast {
     position: fixed;
@@ -173,7 +181,7 @@
         </select>
         <button id="open" title="Open an HTML file from this device">Open file</button>
         <span class="grow"></span>
-        <button id="share" title="Make a link that contains this code">Share link</button>
+        <button id="share" title="Copy a link that contains this code">Share link</button>
         <button id="run" class="primary" title="Ctrl/Cmd + Enter">Run ▶</button>
         <button id="download">Download</button>
         <button id="reset">Reset</button>
@@ -193,7 +201,7 @@
   </main>
 
   <footer>
-    <strong>Public page:</strong> a share link puts the code in the URL, so anyone with the link can read it. Files you open stay on your device, and nothing is uploaded to a server.
+    <strong>Public page:</strong> a share link looks like <code>/lab/#code=z:…</code> — that is your code compressed and packed into the URL, not gibberish. Anyone with the link can read it. Files you open stay on your device; nothing is uploaded to a server.
   </footer>
 
 <script>
@@ -476,12 +484,12 @@
         await navigator.clipboard.writeText(url);
         copied = true;
       } catch (e) {
-        try { window.prompt('Copy this share link:', url); } catch (e2) {}
+        try { window.prompt('Copy this share link (it contains your code, encoded):', url); } catch (e2) {}
       }
       if (url.length > 8000) {
-        showToast(copied ? 'Link copied — it is long, some apps may cut it' : 'Share link ready — some apps may cut it');
+        showToast(copied ? 'Link copied — code is inside it, and it is long' : 'Share link ready — some apps may cut it');
       } else {
-        showToast(copied ? 'Share link copied' : 'Share link ready');
+        showToast(copied ? 'Share link copied — code is inside the link' : 'Share link ready — code is inside the link');
       }
     } catch (e) {
       showToast('Could not create the link');

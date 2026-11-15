@@ -24,7 +24,9 @@ no build step — GitHub Pages serves the files exactly as they are.
   file is read in the browser and never uploaded.
 - **Share link** puts the entire snippet into the URL fragment (`#code=...`),
   compressed when the browser supports `CompressionStream`. Fragments are not
-  sent to the server, so the code travels only in the link itself.
+  sent to the server, so the code travels only in the link itself. A link looks
+  like `/lab/#code=z:H4sI...` — the `z:` means raw-deflate, and the rest is
+  base64url. It is not meant to be read; the lab decodes it on load.
 - **Download** saves the snippet as `page.html`; **Reset** restores the starter.
 - The last snippet is kept in `localStorage`.
 - The preview runs in a sandboxed iframe (`allow-scripts allow-modals
